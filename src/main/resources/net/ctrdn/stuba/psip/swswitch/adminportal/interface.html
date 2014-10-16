@@ -1,0 +1,166 @@
+%portal_header_html%
+<script type="text/javascript">
+    var interface_cache = null;
+    var interface_current = null;
+
+    function interface_config_load() {
+        call_swswitch_api("switch.interface-config-get", function(data) {
+            var tbhtml = "";
+            interface_cache = data.InterfaceList;
+            for (var i in data.InterfaceList) {
+                var ifobj = data.InterfaceList[i];
+                tbhtml += "<tr>";
+                tbhtml += "<td><span class=\"glyphicon glyphicon-resize-horizontal\"></span> " + ifobj.Name + "</td>";
+                tbhtml += "<td style=\"text-align: center;\">" + ((ifobj.SwitchportStatus) ? "<span class=\"text-success glyphicon glyphicon-ok\"></span>" : "<span class=\"text-danger glyphicon glyphicon-remove\"></span>") + "</td>";
+
+                if (ifobj.IngressAccessList === null) {
+                    tbhtml += "<td style=\"color: #aaaaaa;\"><span class=\"glyphicon glyphicon-lock\"> <i>None</i></td>";
+                } else {
+                    tbhtml += "<td><a href=\"/acl.html?acl-id=" + ifobj.IngressAccessList.Id + "\"><span class=\"glyphicon glyphicon-lock\"></span> " + ((ifobj.IngressAccessList.Name === "" || ifobj.IngressAccessList.Name === null) ? "<i>[" + ifobj.IngressAccessList.Id + "]</i>" : ifobj.IngressAccessList.Name) + "</a></td>";
+                }
+
+                if (ifobj.EgressAccessList === null) {
+                    tbhtml += "<td style=\"color: #aaaaaa;\"><span class=\"glyphicon glyphicon-lock\"> <i>None</i></td>";
+                } else {
+                    tbhtml += "<td><a href=\"/acl.html?acl-id=" + ifobj.EgressAccessList.Id + "\"><span class=\"glyphicon glyphicon-lock\"></span> " + ((ifobj.EgressAccessList.Name === "" || ifobj.EgressAccessList.Name === null) ? "<i>[" + ifobj.EgressAccessList.Id + "]</i>" : ifobj.EgressAccessList.Name) + "</a></td>";
+                }
+
+                tbhtml += "<td class=\"text-right\"><a class=\"btn btn-primary btn-sm\" role=\"button\" href=\"#\" data-interface-configure=\"" + i + "\"><span class=\"glyphicon glyphicon-wrench\"></span> Configure</a></td>";
+
+                tbhtml += "</tr>";
+            }
+            $("#sw-interface-table tbody").html(tbhtml);
+
+            $("a[data-interface-configure]").click(function() {
+                var ifIndex = $(this).attr("data-interface-configure");
+                var ifobj = interface_cache[ifIndex];
+                interface_current = ifobj;
+                $("#input-interface-name").val(ifobj.Name);
+                $("#input-interface-description").val(ifobj.Description);
+                $("#input-switchport-enabled").prop("checked", ifobj.SwitchportStatus);
+                $("#input-ingress-acl").val("");
+                if (ifobj.IngressAccessList !== null) {
+                    $("#input-ingress-acl").val(ifobj.IngressAccessList.Id);
+                }
+                $("#input-egress-acl").val("");
+                if (ifobj.EgressAccessList !== null) {
+                    $("#input-egress-acl").val(ifobj.EgressAccessList.Id);
+                }
+                $("#configureInterfaceModal").modal("show");
+            });
+        });
+    }
+
+    function acl_cache_load() {
+        call_swswitch_api("acl.list", function(data) {
+            var selecthtml = "<option value=\"\"><i>None</i></option>";
+            for (var i in data.AccessListList) {
+                var aclobj = data.AccessListList[i];
+                selecthtml += "<option value=\"" + aclobj.Id + "\">[" + aclobj.Id + "] " + aclobj.Name + "</option>";
+            }
+            $("#input-ingress-acl, #input-egress-acl").html(selecthtml);
+        });
+    }
+
+    function form_bind() {
+        $("#interface-configure-form").submit(function(evemt) {
+            event.preventDefault();
+            var data = {
+                "name": interface_current.Name,
+                "enabled": $("#input-switchport-enabled").prop("checked") ? "true" : "false",
+                "ingress-acl": $("#input-ingress-acl").val(),
+                "egress-acl": $("#input-egress-acl").val()
+            };
+            call_swswitch_api_params("switch.interface-config-set", data, function(data) {
+                interface_config_load();
+                $("#configureInterfaceModal").modal("hide");
+            })
+        });
+    }
+
+    $(document).ready(function() {
+        interface_config_load();
+        acl_cache_load();
+        form_bind();
+    });
+</script>
+
+<div class="panel panel-default">
+    <div class="panel-heading">
+        <h3 class="panel-title">Interface Configuration</h3>
+    </div>
+    <div class="panel-body">
+        <table id="sw-interface-table" class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Switchport Enabled</th>
+                    <th>Ingress ACL</th>
+                    <th>Egress ACL</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+
+
+
+<div class="modal fade" id="configureInterfaceModal" tabindex="-1" role="dialog" aria-labelledby="configureInterfaceModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+                <h4 class="modal-title" id="configureInterfaceModalLabel">Interface Configuration</h4>
+            </div>
+            <form class="form-horizontal" id="interface-configure-form">
+                <div class="modal-body">
+                    <div class="form-group disabled">
+                        <label for="input-acl-name" class="col-sm-2 control-label">Name</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" id="input-interface-name" disabled>
+                        </div>
+                    </div>
+                    <div class="form-group disabled">
+                        <label for="input-acl-name" class="col-sm-2 control-label">Description</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" id="input-interface-description" disabled>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="checkbox">
+                            <label class="control-label col-sm-12">
+                                <input type="checkbox" value="" id='input-switchport-enabled'>
+                                <strong>Switchport Enabled</strong> (Check if you want to use this port as part of the switch)
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="input-acl-ip-proto" class="col-sm-3 control-label">Ingress ACL</label>
+                        <div class="col-sm-9">
+                            <select class="form-control" id="input-ingress-acl">
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="input-acl-ip-proto" class="col-sm-3 control-label">Egress ACL</label>
+                        <div class="col-sm-9">
+                            <select class="form-control" id="input-egress-acl">
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Save Configuration</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+%portal_footer_html%
+

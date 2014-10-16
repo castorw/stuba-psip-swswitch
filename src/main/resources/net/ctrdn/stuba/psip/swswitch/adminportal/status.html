@@ -1,0 +1,184 @@
+%portal_header_html%
+<script type="text/javascript">
+    var stats_color_classes = ["progress-bar-primary", "progress-bar-success", "progress-bar-warning", "progress-bar-info", "progress-bar-danger"];
+    var stats_visible = false;
+
+    function interface_status_load() {
+        call_swswitch_api("switch.interface-status-get", function(data) {
+            var tbhtml = "";
+            for (var i in data.InterfaceList) {
+                var ifobj = data.InterfaceList[i];
+                tbhtml += "<tr>";
+                tbhtml += "<td><span class=\"glyphicon glyphicon-resize-horizontal\"></span> " + ifobj.Name + "</td>";
+                tbhtml += "<td style=\"text-align: center;\">" + ((ifobj.SwitchportStatus) ? "<span class=\"text-success glyphicon glyphicon-ok\"></span>" : "<span class=\"text-danger glyphicon glyphicon-remove\"></span>") + "</td>";
+                if (ifobj.SwitchportStatus) {
+                    tbhtml += "<td class=\"info\">" + ifobj.TxPacketThroughput + "</td>";
+                    tbhtml += "<td class=\"info\">" + format_octet_size(ifobj.TxByteThroughput * 8, 2, true) + "</td>";
+                    tbhtml += "<td>" + ifobj.TxPacketCount + "</td>";
+                    tbhtml += "<td>" + format_octet_size(ifobj.TxByteCount, 2, false) + "</td>";
+
+                    tbhtml += "<td class=\"info\">" + ifobj.RxPacketThroughput + "</td>";
+                    tbhtml += "<td class=\"info\">" + format_octet_size(ifobj.RxByteThroughput * 8, 2, true) + "</td>";
+                    tbhtml += "<td>" + ifobj.RxPacketCount + "</td>";
+                    tbhtml += "<td>" + format_octet_size(ifobj.RxByteCount, 2, false) + "</td>";
+                } else {
+                    tbhtml += "<td class=\"info\">-</td><td class=\"info\">-</td><td>-</td><td>-</td><td class=\"info\">-</td><td class=\"info\">-</td><td>-</td><td>-</td>";
+                }
+                tbhtml += "</tr>";
+
+                if (ifobj.SwitchportStatus) {
+                    tbhtml += "<tr class=\"stats_row\" " + ((stats_visible) ? "" : "style=\"display:none\"") + "><td colspan=\"10\"><div class=\"well\">";
+                    tbhtml += "<div class=\"row\">";
+                    tbhtml += "<div class=\"col-md-3 text-right\"><span class=\"glyphicon glyphicon-signal\"></span> L2 Ethernet Type</div>";
+                    tbhtml += "<div class=\"col-md-9\"><div class=\"progress\">";
+                    var pTotal = 0;
+                    for (var j in ifobj.EthernetTypeStats) {
+                        pTotal += ifobj.EthernetTypeStats[j].PacketCount;
+                    }
+                    var cw = 0;
+                    for (var j in ifobj.EthernetTypeStats) {
+                        var etsobj = ifobj.EthernetTypeStats[j];
+                        var percent = ((etsobj.PacketCount / pTotal) * 100);
+                        tbhtml += "<div class=\"progress-bar " + stats_color_classes[cw] + "\" style=\"width: " + percent + "%\" data-toggle=\"tooltip\" data-placement=\"bottom\" title=\"" + etsobj.Name + "(0x" + etsobj.Code + "), " + etsobj.PacketCount + " packets\">";
+                        if (percent > 5) {
+                            tbhtml += etsobj.Name;
+                        }
+                        tbhtml += "</div>";
+                        cw++;
+                        if (cw >= stats_color_classes.length) {
+                            cw = 0;
+                        }
+                    }
+                    tbhtml += "</div></div></div>";
+                    tbhtml += "<div class=\"row\">";
+                    tbhtml += "<div class=\"col-md-3 text-right\"><span class=\"glyphicon glyphicon-signal\"></span> L3/L4 IP Protocol</div>";
+                    tbhtml += "<div class=\"col-md-9\"><div class=\"progress\">";
+                    pTotal = 0;
+                    for (var j in ifobj.IpProtocolStats) {
+                        pTotal += ifobj.IpProtocolStats[j].PacketCount;
+                    }
+                    var cw = 0;
+                    for (var j in ifobj.IpProtocolStats) {
+                        var ipsobj = ifobj.IpProtocolStats[j];
+                        var percent = ((ipsobj.PacketCount / pTotal) * 100);
+                        tbhtml += "<div class=\"progress-bar " + stats_color_classes[cw] + "\" style=\"width: " + percent + "%\" data-toggle=\"tooltip\" data-placement=\"bottom\" title=\"" + ipsobj.Name + "(0x" + ipsobj.Code + "), " + ipsobj.PacketCount + " packets\">";
+                        if (percent > 5) {
+                            tbhtml += ipsobj.Name;
+                        }
+                        tbhtml += "</div>";
+                        cw++;
+                        if (cw >= stats_color_classes.length) {
+                            cw = 0;
+                        }
+                    }
+                    tbhtml += "</div></div></div>";
+                    tbhtml += "</div></td></tr>";
+                }
+            }
+            $("#sw-interface-table tbody").html(tbhtml);
+            $("div[data-toggle='tooltip']").tooltip();
+        });
+        setTimeout("interface_status_load();", 2500);
+    }
+
+    function forwarding_table_load() {
+        call_swswitch_api("switch.forwarding-table-get", function(data) {
+            var tbhtml = "";
+            for (var i in data.ForwardingTableEntryList) {
+                var entryobj = data.ForwardingTableEntryList[i];
+                tbhtml += "<tr>";
+                tbhtml += "<td><span class=\"glyphicon glyphicon-tag\"></span> " + entryobj.MacAddress + "</td>";
+                tbhtml += "<td><span class=\"glyphicon glyphicon-resize-horizontal\"></span> " + entryobj.InterfaceName + "</td>";
+                tbhtml += "<td>" + moment(entryobj.LastSeenTimestamp / 1000, "X").fromNow() + "</td>";
+                tbhtml += "<td>" + entryobj.TxPacketCount + "</td>";
+                tbhtml += "<td>" + format_octet_size(entryobj.TxByteCount, 2) + "</td>";
+                tbhtml += "<td>" + entryobj.RxPacketCount + "</td>";
+                tbhtml += "<td>" + format_octet_size(entryobj.RxByteCount, 2) + "</td>";
+                tbhtml += "</tr>";
+            }
+            $("#sw-forwarding-table tbody").html(tbhtml);
+        });
+        setTimeout("forwarding_table_load();", 2500);
+    }
+
+    $(document).ready(function() {
+        interface_status_load();
+        forwarding_table_load();
+
+        $("a[data-toggle-stats]").click(function() {
+            stats_visible = !stats_visible;
+            if (stats_visible) {
+                $(".stats_row").fadeIn(500);
+            } else {
+                $(".stats_row").fadeOut(500);
+            }
+        });
+    });
+</script>
+
+<div class="panel panel-default">
+    <div class="panel-heading">
+        <h3 class="panel-title">Interface Status</h3>
+    </div>
+    <div class="panel-body">
+        <table id="sw-interface-table" class="table table-striped">
+            <thead>
+                <tr>
+                    <th colspan="2">Interface</th>
+                    <th colspan="4">Transmit</th>
+                    <th colspan="4">Receive</th>
+                </tr>
+                <tr>
+                    <th>Name</th>
+                    <th>Switchport Status</th>
+                    <th>pps</th>
+                    <th>bps</th>
+                    <th>Total Packets</th>
+                    <th>Total Bytes</th>
+                    <th>pps</th>
+                    <th>bps</th>
+                    <th>Total Packets</th>
+                    <th>Total Bytes</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+        <div class="container-fluid text-right">
+            <a data-toggle-stats href="#" class="btn btn-primary btn-sm" role="button">Toggle Protocol Stats</a>
+            <a data-call-api="switch.interface-stats-reset" data-call-confirm="Are you sure you want to reset the interface counters?" class="btn btn-warning btn-sm" role="button" href="#">Reset Counters</a>
+        </div>
+    </div>
+</div>
+
+
+<div class="panel panel-default">
+    <div class="panel-heading">
+        <h3 class="panel-title">Forwarding Table</h3>
+    </div>
+    <div class="panel-body">
+        <table id="sw-forwarding-table" class="table table-striped">
+            <thead>
+
+                <tr>
+                    <th>Hardware Address</th>
+                    <th>Interface</th>
+                    <th>Last Seen</th>
+                    <th>Tx Packets</th>
+                    <th>Tx Bytes</th>
+                    <th>Rx Packets</th>
+                    <th>Rx Bytes</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+        <div class="container-fluid text-right">
+            <a data-call-api="switch.forwarding-table-flush" data-call-confirm="Are you sure you want to flush the forwarding table?" class="btn btn-danger btn-sm" role="button" href="#">Flush Table</a>
+            <a data-call-api="switch.forwarding-table-stats-reset" data-call-confirm="Are you sure you want to reset the forwarding table entries counters?" class="btn btn-warning btn-sm" role="button" href="#">Reset Counters</a>
+        </div>
+    </div>
+</div>
+
+
+%portal_footer_html%

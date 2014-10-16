@@ -1,0 +1,422 @@
+%portal_header_html%
+<script type="text/javascript">
+    var acl_selected = null;
+    var acl_selected_name = null;
+
+    function getParameterByName(name) {
+        name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
+        var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
+                results = regex.exec(location.search);
+        return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
+    }
+
+    function acl_list_load() {
+        call_swswitch_api("acl.list", function(data) {
+            var alhtml = "";
+            for (var i in data.AccessListList) {
+                var aclentry = data.AccessListList[i];
+                alhtml += "<a class=\"list-group-item\" href=\"#\" data-acl-id=\"" + aclentry.Id + "\"" + ((aclentry.Name === null) ? "" : "data-acl-name=\"" + aclentry.Name + "\"") + ">";
+                alhtml += "<div class=\"row\"><div class=\"col-md-9\"><small class=\"text-primary\">" + aclentry.Id + "</small></div><div class=\"col-md-1\"><span class=\"badge\">" + aclentry.EntryCount + "</span></div></div>";
+                alhtml += ((aclentry.Name === null) ? "-" : aclentry.Name);
+                alhtml += "</div></a>";
+            }
+            $("#sw-acl-list").html(alhtml);
+            $("a[data-acl-id]").click(function() {
+                acl_selected = $(this).attr("data-acl-id");
+                acl_selected_name = $(this).attr("data-acl-name");
+                acl_detail_load();
+            });
+        });
+    }
+
+    function acl_create_bind() {
+        $("#create-acl-form").submit(function(event) {
+            event.preventDefault();
+            call_swswitch_api_params("acl.create", {"name": $("#input-acl-name").val()}, function(data) {
+                acl_list_load();
+                $("#createAclModal").modal('hide');
+                $("#input-acl-name").val("");
+            });
+        });
+    }
+
+    function acl_delete_bind() {
+        $("#acl-delete-btn").click(function() {
+            if (confirm("Are you sure you want to delete this access list?")) {
+                call_swswitch_api_params("acl.delete", {"id": acl_selected}, function(data) {
+                    acl_selected = null;
+                    acl_list_load();
+                    acl_detail_load();
+                });
+            }
+        });
+    }
+
+    function acl_detail_load() {
+        $("a[data-acl-id]").removeClass("active");
+        if (acl_selected === null) {
+            $("#sw-acl-detail").fadeOut(500);
+        } else {
+            var menu_item = $("a[data-acl-id='" + acl_selected + "']");
+            menu_item.addClass("active");
+            call_swswitch_api_params("acl.entry-get-list", {"acl-id": acl_selected}, function(data) {
+                var tbhtml = "";
+                for (var i in data.EntryList) {
+                    var entryobj = data.EntryList[i];
+                    tbhtml += "<tr data-entry-id=\"" + entryobj.Id + "\" data-entry-order-key=\"" + entryobj.OrderKey + "\">";
+
+                    tbhtml += "<td class=\"text-center\"><span class=\"dragHandle glyphicon glyphicon-move text-primary\" style=\"cursor: move; font-size: 20px; margin-top:20px;\"></span></td>";
+
+                    tbhtml += "<td>";
+                    tbhtml += "<div class=\"row\"><span class=\"glyphicon glyphicon-export\"></span> " + acl_prep_display(entryobj.SourceMac) + "</div>";
+                    tbhtml += "<div class=\"row\"><span class=\"glyphicon glyphicon-import\"></span> " + acl_prep_display(entryobj.DestinationMac) + "</div>";
+                    tbhtml += "<div class=\"row\"><span class=\"glyphicon glyphicon-align-justify\"></span> " + acl_prep_display(entryobj.EtherType) + "</div>";
+                    tbhtml += "</td>";
+
+                    tbhtml += "<td>";
+                    tbhtml += "<div class=\"row\"><span class=\"glyphicon glyphicon-export\"></span> " + acl_prep_display(entryobj.SourceIp) + "</div>";
+                    tbhtml += "<div class=\"row\"><span class=\"glyphicon glyphicon-import\"></span> " + acl_prep_display(entryobj.DestinationIp) + "</div>";
+                    tbhtml += "<div class=\"row\"><span class=\"glyphicon glyphicon-align-justify\"></span> " + acl_prep_display(entryobj.IpProtocol) + "</div>";
+                    tbhtml += "</td>";
+
+                    tbhtml += "<td>";
+                    tbhtml += "<div class=\"row\"><span class=\"glyphicon glyphicon-export\"></span> " + acl_prep_display(entryobj.SourcePort) + "</div>";
+                    tbhtml += "<div class=\"row\"><span class=\"glyphicon glyphicon-import\"></span> " + acl_prep_display(entryobj.DestinationPort) + "</div>";
+                    tbhtml += "</td>";
+                    if (entryobj.Action === "PERMIT") {
+                        tbhtml += "<td><div class=\"row\"><span class=\"text-success\"><span class=\"glyphicon glyphicon-ok\"></span> Permit</span></div></td>";
+                    } else if (entryobj.Action === "DROP") {
+                        tbhtml += "<td><div class=\"row\"><span class=\"text-danger\"><span class=\"glyphicon glyphicon-remove\"></span> Drop</span></div></td>";
+                    }
+                    tbhtml += "<td id=\"hits-" + acl_selected + "-" + entryobj.Id + "\">" + entryobj.HitCount + "</td>";
+                    tbhtml += "<td><a class=\"btn btn-danger btn-xs\" role=\"button\" href=\"#\" data-delete-acl-entry=\"" + entryobj.Id + "\"><span class=\"glyphicon glyphicon-remove\"></span> Delete</a></td>";
+                    tbhtml += "</tr>";
+                }
+                $("#sw-acl-entry-table tbody").html(tbhtml);
+
+                $('#sw-acl-entry-table').sortable({
+                    containerSelector: 'table',
+                    itemPath: '> tbody',
+                    itemSelector: 'tr',
+                    placeholder: '<tr class="placeholder info"><td colspan=\"7\"></tr>',
+                    handle: "span.dragHandle",
+                    onDrop: function(item, targetContainer, _super) {
+                        item.removeClass("dragged").removeAttr("style");
+                        $("body").removeClass("dragging");
+                        var itemAfter = item.prev();
+                        var item_id = item.attr("data-entry-id");
+                        var item_after_id = itemAfter.attr("data-entry-id");
+                        var request_data = {
+                            "acl-id": acl_selected,
+                            "entry-id": item_id,
+                            "entry-place-after": (item_after_id === undefined) ? "" : item_after_id
+                        };
+                        call_swswitch_api_params("acl.entry-reorder", request_data, null);
+                    }
+                });
+
+                $("a[data-delete-acl-entry]").click(function() {
+                    var id = $(this).attr("data-delete-acl-entry");
+                    call_swswitch_api_params("acl.entry-delete", {"acl-id": acl_selected, "entry-id": id}, function(data) {
+                        acl_list_load();
+                        acl_detail_load();
+                    });
+                });
+            });
+            $("#sw-acl-detail").fadeIn(500);
+        }
+    }
+
+    function acl_detail_update_hits() {
+        if (acl_selected !== null) {
+            call_swswitch_api_params("acl.entry-get-list", {"acl-id": acl_selected}, function(data) {
+                for (var i in data.EntryList) {
+                    var entryobj = data.EntryList[i];
+                    $("#hits-" + acl_selected + "-" + entryobj.Id).html(entryobj.HitCount);
+                }
+            });
+        }
+        setTimeout("acl_detail_update_hits();", 2500);
+    }
+
+    function acl_prep_display(x) {
+        if (x === undefined || x === null) {
+            return "<i style=\"color: #aaaaaa;\">Any</i>";
+        } else {
+            return x;
+        }
+    }
+
+    function acl_create_entry_form_bind() {
+        $("#input-acl-ethernet-type, #input-acl-ip-proto").change(function() {
+            var etherType = $("#input-acl-ethernet-type").val();
+            var ipType = $("#input-acl-ip-proto").val();
+            if (etherType === "IPV4") {
+                $("#acl-block-network").fadeIn(500);
+                if (ipType === "TCP" || ipType === "UDP") {
+                    $("#acl-block-transport").fadeIn(500);
+                } else {
+                    $("#acl-block-transport").fadeOut(500);
+                }
+            } else {
+                $("#acl-block-network").fadeOut(500);
+                $("#acl-block-transport").fadeOut(500);
+            }
+        });
+        $("#create-acl-entry-form").submit(function(event) {
+            event.preventDefault();
+            var data = {
+                "acl-id": acl_selected,
+                "src-mac": $("#input-acl-mac-src").val(),
+                "dst-mac": $("#input-acl-mac-dst").val(),
+                "ether-type": $("#input-acl-ethernet-type").val(),
+                "src-ip": $("#input-acl-ip-src").val(),
+                "dst-ip": $("#input-acl-ip-dst").val(),
+                "ip-proto": $("#input-acl-ip-proto").val(),
+                "src-port": $("#input-acl-port-src").val(),
+                "dst-port": $("#input-acl-port-dst").val(),
+                "action": $('input[name=actionRadio]:checked').val()
+            };
+            call_swswitch_api_params("acl.entry-create", data, function(data) {
+                $("#createAclEntryModal").modal('hide');
+                $("#sw-acl-detail").fadeOut(500);
+                acl_list_load();
+                setTimeout(function() {
+                    acl_detail_load();
+                }, 500);
+            });
+        });
+
+        $("#acl-rename-btn").click(function() {
+            $("#input-acl-rename-name").val(acl_selected_name);
+            $("#renameAclModal").modal('show');
+        });
+
+        $("#rename-acl-form").submit(function(event) {
+            event.preventDefault();
+            var data = {
+                "acl-id": acl_selected,
+                "name": $("#input-acl-rename-name").val()
+            };
+            call_swswitch_api_params("acl.rename", data, function(data) {
+                $("#renameAclModal").modal('hide');
+                $("#sw-acl-detail").fadeOut(500);
+                acl_list_load();
+                setTimeout(function() {
+                    acl_detail_load();
+                }, 500);
+            });
+        });
+    }
+
+    $(document).ready(function() {
+        acl_list_load();
+        acl_create_bind();
+        acl_delete_bind();
+        acl_create_entry_form_bind();
+        acl_detail_update_hits();
+        setTimeout(function() {
+            var loadAcl = getParameterByName("acl-id");
+            if (loadAcl !== null && loadAcl !== "") {
+                acl_selected = loadAcl;
+                acl_detail_load();
+            }
+        }, 500);
+    });
+</script>
+
+<div class="row">
+    <div class="col-md-3">
+        <div class="list-group" id="sw-acl-list">
+        </div>
+        <a class="btn btn-primary btn-sm" role="button" href="#" data-toggle="modal" data-target="#createAclModal"><span class="glyphicon glyphicon-plus"></span> Create Access List</a>
+    </div>
+    <div class="col-md-9" style="display: none;" id="sw-acl-detail">
+        <table class="table table-striped" id="sw-acl-entry-table">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>Data Link</th>
+                    <th>Network</th>
+                    <th>Transport</th>
+                    <th>Action</th>
+                    <th>Hits</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+
+            </tbody>
+        </table>
+        <div class="row">
+            <div class="col-md-4">
+            </div>
+            <div class="col-md-8 text-right">
+                <a class="btn btn-primary btn-sm" role="button" href="#" id="acl-create-entry-btn" data-toggle="modal" data-target="#createAclEntryModal"><span class="glyphicon glyphicon-plus"></span> Create Entry</a>
+                <a class="btn btn-primary btn-sm" role="button" href="#" id="acl-rename-btn"><span class="glyphicon glyphicon-pencil"></span> Rename Access List</a>
+                <a class="btn btn-danger btn-sm" role="button" href="#" id="acl-delete-btn"><span class="glyphicon glyphicon-remove"></span> Delete Access List</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- create acl entry modal -->
+<div class="modal fade" id="createAclEntryModal" tabindex="-1" role="dialog" aria-labelledby="createAclEntryModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+                <h4 class="modal-title" id="createAclModalEntryLabel">Create new entry</h4>
+            </div>
+            <form class="form-horizontal" id="create-acl-entry-form">
+                <div class="modal-body">
+                    <!-- Data Link Layer -->
+                    <div class="form-group">
+                        <label for="input-acl-mac-src" class="col-sm-3 control-label">Source MAC</label>
+                        <div class="col-sm-9">
+                            <input type="text" class="form-control" id="input-acl-mac-src" placeholder="Any"/>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="input-acl-mac-dst" class="col-sm-3 control-label">Destination MAC</label>
+                        <div class="col-sm-9">
+                            <input type="text" class="form-control" id="input-acl-mac-dst" placeholder="Any" />
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="input-acl-name" class="col-sm-3 control-label">Ethernet Type</label>
+                        <div class="col-sm-9">
+                            <select class="form-control" id="input-acl-ethernet-type">
+                                <option value="">Any</option>
+                                <option value="ARP">ARP</option>
+                                <option value="IPV4">IPv4</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Network Layer -->
+                    <div id="acl-block-network" style="display: none">
+                        <div class="form-group">
+                            <label for="input-acl-ip-src" class="col-sm-3 control-label">Source IP</label>
+                            <div class="col-sm-9">
+                                <input type="text" class="form-control" id="input-acl-ip-src" placeholder="Any" />
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="input-acl-ip-dst" class="col-sm-3 control-label">Destination IP</label>
+                            <div class="col-sm-9">
+                                <input type="text" class="form-control" id="input-acl-ip-dst" placeholder="Any" />
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="input-acl-ip-proto" class="col-sm-3 control-label">IP Protocol</label>
+                            <div class="col-sm-9">
+                                <select class="form-control" id="input-acl-ip-proto">
+                                    <option value="">Any</option>
+                                    <option value="ICMP">ICMP</option>
+                                    <option value="TCP">TCP</option>
+                                    <option value="UDP">UDP</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Transport Layer -->
+                    <div id="acl-block-transport" style="display: none">
+                        <div class="form-group">
+                            <label for="input-acl-port-src" class="col-sm-3 control-label">Source Port</label>
+                            <div class="col-sm-9">
+                                <input type="text" class="form-control" id="input-acl-port-src" placeholder="Any" />
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="input-acl-port-dst" class="col-sm-3 control-label">Destination Port</label>
+                            <div class="col-sm-9">
+                                <input type="text" class="form-control" id="input-acl-port-dst" placeholder="Any" />
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="form-group">
+                    <label for="input-acl-port-src" class="col-sm-3 control-label">Action</label>
+                    <div class="col-sm-9">
+                        <div class="radio">
+                            <label>
+                                <input type="radio" name="actionRadio" id="actionRadioPermit" value="PERMIT" checked>
+                                <span class="text-success"><span class="glyphicon glyphicon-ok"></span> Permit</span>
+                            </label>
+                        </div>
+                        <div class="radio">
+                            <label>
+                                <input type="radio" name="actionRadio" id="actionDropPermit" value="DROP">
+                                <span class="text-danger"><span class="glyphicon glyphicon-remove"></span> Drop</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary" id="btn-create-entry-modal">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- create acl modal -->
+<div class="modal fade" id="createAclModal" tabindex="-1" role="dialog" aria-labelledby="createAclModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+                <h4 class="modal-title" id="createAclModalLabel">Create new access list</h4>
+            </div>
+            <form class="form-horizontal" id="create-acl-form">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="input-acl-name" class="col-sm-2 control-label">Name</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" id="input-acl-name" placeholder="Access List Name">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary" id="btn-create-modal">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- rename acl modal -->
+<div class="modal fade" id="renameAclModal" tabindex="-1" role="dialog" aria-labelledby="renameAclModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+                <h4 class="modal-title" id="renameAclModalLabel">Rename Access List</h4>
+            </div>
+            <form class="form-horizontal" id="rename-acl-form">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="input-acl-name" class="col-sm-2 control-label">Name</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" id="input-acl-rename-name" placeholder="Access List Name">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Rename</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+%portal_footer_html%

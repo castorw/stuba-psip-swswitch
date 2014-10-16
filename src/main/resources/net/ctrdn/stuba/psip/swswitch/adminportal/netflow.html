@@ -1,0 +1,165 @@
+%portal_header_html%
+<script type="text/javascript">
+    var stats_enabled = false;
+
+    function netflow_load_config() {
+        call_swswitch_api("netflow.config-get", function(data) {
+            var nfconf = data.NetflowConfiguration;
+            $("#input-netflow-enabled").prop("checked", nfconf.Enabled);
+            $("#input-netflow-destination-host").val(nfconf.DestinationHost);
+            $("#input-netflow-destination-port").val(nfconf.DestinationPort + "");
+            $("#input-netflow-flow-timeout").val(nfconf.FlowTimeout + "");
+            $("#input-netflow-export-interval").val(nfconf.ExportInterval);
+
+            var tbhtml = "";
+            tbhtml += "<tr><td><strong>NetFlow Status</strong></td><td>" + ((nfconf.Enabled) ? "<span class=\"text-success\"><span class=\"glyphicon glyphicon-ok\"></span> Enabled</span>" : "<span class=\"text-danger\"><span class=\"glyphicon glyphicon-remove\"></span> Disabled</span>") + "</td></tr>";
+            tbhtml += "<tr><td><strong>Destination</strong></td><td>" + nfconf.DestinationHost + ":" + nfconf.DestinationPort + "</td></tr>";
+            tbhtml += "<tr><td><strong>Flow Timeout</strong></td><td>" + nfconf.FlowTimeout + " msec</td></tr>";
+            tbhtml += "<tr><td><strong>Export Interval</strong></td><td>" + nfconf.ExportInterval + " packets</td></tr>";
+            $("#netflow-config-table tbody").html(tbhtml);
+
+            if (nfconf.Enabled) {
+                stats_enabled = true;
+            } else {
+                stats_enabled = false;
+            }
+            netflow_load_stats();
+        });
+    }
+
+    function netflow_load_stats() {
+        if (stats_enabled) {
+            call_swswitch_api("netflow.stats-get", function(data) {
+                var stats = data.NetFlowStats;
+                var tbhtml = "";
+                tbhtml += "<tr><td><span class=\"glyphicon glyphicon-time\"></span> <strong>Export Started</strong></td><td>" + moment(stats.StartDate / 1000, "X").fromNow() + "</td></tr>";
+                tbhtml += "<tr><td><span class=\"glyphicon glyphicon-eye-open\"></span> <strong>Flows Seen</strong></td><td>" + stats.FlowsSeen + "</td></tr>";
+                tbhtml += "<tr><td><span class=\"glyphicon glyphicon-eye-close\"></span> <strong>Flows Expired</strong></td><td>" + stats.FlowsExpired + "</td></tr>";
+                tbhtml += "<tr><td><span class=\"glyphicon glyphicon-arrow-right\"></span> <strong>Packets Processed</strong></td><td>" + stats.PacketsProcessed + "</td></tr>";
+                tbhtml += "<tr><td><span class=\"glyphicon glyphicon-remove\"></span> <strong>Packets Discarded</strong></td><td>" + stats.PacketsDiscarded + "</td></tr>";
+                tbhtml += "<tr><td><span class=\"glyphicon glyphicon-envelope\"></span> <strong>NetFlow Messages Sent</strong></td><td>" + stats.NetFlowMessagesSent + "</td></tr>";
+                $("#netflow-stats-table tbody").html(tbhtml);
+            });
+        } else {
+            $("#netflow-stats-table tbody").html("<tr><td class=\"text-center\">No data available.</td></tr>");
+        }
+        setTimeout("netflow_load_stats();", 2500);
+    }
+
+    function netflow_bind_form() {
+        $("#netflow-configure-form").submit(function(event) {
+            event.preventDefault();
+            var data = {
+                "enabled": $("#input-netflow-enabled").prop("checked") ? "true" : "false",
+                "destination-host": $("#input-netflow-destination-host").val(),
+                "destination-port": $("#input-netflow-destination-port").val(),
+                "flow-timeout": $("#input-netflow-flow-timeout").val(),
+                "export-interval": $("#input-netflow-export-interval").val()
+            };
+            call_swswitch_api_params("netflow.config-set", data, function(data) {
+                netflow_load_config();
+                $("#configureNetflowModal").modal("hide");
+            });
+            stats_enabled = $("#input-netflow-enabled").prop("checked");
+        });
+    }
+
+    $(document).ready(function() {
+        netflow_load_config();
+        netflow_bind_form();
+    });
+</script>
+
+<div class="panel panel-default">
+    <div class="panel-heading">
+        <h3 class="panel-title">Flow Export Configuration</h3>
+    </div>
+    <div class="panel-body">
+        <p>This software switch is able to export network flow data using NetFlow protocol version 5. Only traffic that passes all access lists in it's forwarding path gets exported via flow exporter.</p>
+        <table class="table table-striped" id="netflow-config-table">
+            <tbody></tbody>
+        </table>
+        <a href="#" class="btn btn-primary" data-toggle="modal" data-target="#configureNetflowModal"><span class="glyphicon glyphicon-wrench"></span> Configure NetFlow Exporter</a>
+    </div>
+</div>
+
+<div class="panel panel-default">
+    <div class="panel-heading">
+        <h3 class="panel-title">Stats</h3>
+    </div>
+    <div class="panel-body">
+        <table class="table table-striped" id="netflow-stats-table">
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="configureNetflowModal" tabindex="-1" role="dialog" aria-labelledby="configureNetflowModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+                <h4 class="modal-title" id="configureNetflowModalLabel">NetFlow Exporter Configuration</h4>
+            </div>
+            <form class="form-horizontal" id="netflow-configure-form" role="form">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="input-netflow-enabled" class="col-sm-3 control-label"></label>
+                        <div class="col-sm-9">
+                            <div class="checkbox">
+                                <label class="control-label">
+                                    <input type="checkbox" value="" id='input-netflow-enabled'>
+                                    <strong>NetFlow Exporter Enabled</strong>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="input-netflow-destination-host" class="col-sm-3 control-label">Destination Host</label>
+                        <div class="col-sm-9">
+                            <input type="text" class="form-control" id="input-netflow-destination-host" name="input-netflow-destination-host">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="input-netflow-destination-port" class="col-sm-3 control-label">Destination Port</label>
+                        <div class="col-sm-9">
+                            <div class="input-group">
+                                <span class="input-group-addon">UDP /</span>
+                                <input type="text" class="form-control" placeholder="9995" id="input-netflow-destination-port">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="input-acl-name" class="col-sm-3 control-label">Flow Timeout</label>
+                        <div class="col-sm-9">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="input-netflow-flow-timeout">
+                                <span class="input-group-addon">msec</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="input-acl-name" class="col-sm-3 control-label">Export Interval</label>
+                        <div class="col-sm-9">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="input-netflow-export-interval">
+                                <span class="input-group-addon">packets</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Save Configuration</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+%portal_footer_html%
+

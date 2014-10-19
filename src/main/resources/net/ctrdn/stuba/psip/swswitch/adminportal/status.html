@@ -29,7 +29,7 @@
                 if (ifobj.SwitchportStatus) {
                     tbhtml += "<tr class=\"stats_row\" " + ((stats_visible) ? "" : "style=\"display:none\"") + "><td colspan=\"10\"><div class=\"well\">";
                     tbhtml += "<div class=\"row\">";
-                    tbhtml += "<div class=\"col-md-3 text-right\"><span class=\"glyphicon glyphicon-signal\"></span> L2 Ethernet Type</div>";
+                    tbhtml += "<div class=\"col-md-3 text-right\"><span class=\"glyphicon glyphicon-signal\"></span> Ethernet Type</div>";
                     tbhtml += "<div class=\"col-md-9\"><div class=\"progress\">";
                     var pTotal = 0;
                     for (var j in ifobj.EthernetTypeStats) {
@@ -51,7 +51,7 @@
                     }
                     tbhtml += "</div></div></div>";
                     tbhtml += "<div class=\"row\">";
-                    tbhtml += "<div class=\"col-md-3 text-right\"><span class=\"glyphicon glyphicon-signal\"></span> L3/L4 IP Protocol</div>";
+                    tbhtml += "<div class=\"col-md-3 text-right\"><span class=\"glyphicon glyphicon-signal\"></span> IPv4 Protocol</div>";
                     tbhtml += "<div class=\"col-md-9\"><div class=\"progress\">";
                     pTotal = 0;
                     for (var j in ifobj.IpProtocolStats) {
@@ -72,6 +72,53 @@
                         }
                     }
                     tbhtml += "</div></div></div>";
+
+                    tbhtml += "<div class=\"row\">";
+                    tbhtml += "<div class=\"col-md-3 text-right\"><span class=\"glyphicon glyphicon-signal\"></span> Source Port</div>";
+                    tbhtml += "<div class=\"col-md-9\"><div class=\"progress\">";
+                    pTotal = 0;
+                    for (var j in ifobj.SourceVirtualPortStats) {
+                        pTotal += ifobj.SourceVirtualPortStats[j].PacketCount;
+                    }
+                    var cw = 0;
+                    for (var j in ifobj.SourceVirtualPortStats) {
+                        var ipsobj = ifobj.SourceVirtualPortStats[j];
+                        var percent = ((ipsobj.PacketCount / pTotal) * 100);
+                        tbhtml += "<div class=\"progress-bar " + stats_color_classes[cw] + "\" style=\"width: " + percent + "%\" data-toggle=\"tooltip\" data-placement=\"bottom\" title=\"" + ipsobj.PortNumber + ", " + ipsobj.PacketCount + " packets\">";
+                        if (percent > 5) {
+                            tbhtml += ipsobj.PortNumber;
+                        }
+                        tbhtml += "</div>";
+                        cw++;
+                        if (cw >= stats_color_classes.length) {
+                            cw = 0;
+                        }
+                    }
+                    tbhtml += "</div></div></div>";
+
+                    tbhtml += "<div class=\"row\">";
+                    tbhtml += "<div class=\"col-md-3 text-right\"><span class=\"glyphicon glyphicon-signal\"></span> Destination Port</div>";
+                    tbhtml += "<div class=\"col-md-9\"><div class=\"progress\">";
+                    pTotal = 0;
+                    for (var j in ifobj.DestinationVirtualPortStats) {
+                        pTotal += ifobj.DestinationVirtualPortStats[j].PacketCount;
+                    }
+                    var cw = 0;
+                    for (var j in ifobj.DestinationVirtualPortStats) {
+                        var ipsobj = ifobj.DestinationVirtualPortStats[j];
+                        var percent = ((ipsobj.PacketCount / pTotal) * 100);
+                        tbhtml += "<div class=\"progress-bar " + stats_color_classes[cw] + "\" style=\"width: " + percent + "%\" data-toggle=\"tooltip\" data-placement=\"bottom\" title=\"" + ipsobj.PortNumber + ", " + ipsobj.PacketCount + " packets\">";
+                        if (percent > 5) {
+                            tbhtml += ipsobj.PortNumber;
+                        }
+                        tbhtml += "</div>";
+                        cw++;
+                        if (cw >= stats_color_classes.length) {
+                            cw = 0;
+                        }
+                    }
+                    tbhtml += "</div></div></div>";
+
                     tbhtml += "</div></td></tr>";
                 }
             }

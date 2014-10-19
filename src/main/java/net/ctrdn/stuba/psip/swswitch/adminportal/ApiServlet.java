@@ -1,6 +1,7 @@
 package net.ctrdn.stuba.psip.swswitch.adminportal;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -30,6 +31,7 @@ import net.ctrdn.stuba.psip.swswitch.common.IpProtocol;
 import net.ctrdn.stuba.psip.swswitch.common.DataTypeHelpers;
 import net.ctrdn.stuba.psip.swswitch.nic.EthernetTypeStatsEntry;
 import net.ctrdn.stuba.psip.swswitch.nic.IpProtocolStatsEntry;
+import net.ctrdn.stuba.psip.swswitch.nic.VirtualPortStatsEntry;
 
 public class ApiServlet extends HttpServlet {
 
@@ -458,7 +460,7 @@ public class ApiServlet extends HttpServlet {
                         interfaceJob.add("RxByteThroughput", nic.getStats().getRealtimeStats().getRxThroughputBytes());
 
                         JsonArrayBuilder etherTypeJab = Json.createArrayBuilder();
-                        for (EthernetTypeStatsEntry etse : nic.getStats().getEthernetTypeStats()) {
+                        for (EthernetTypeStatsEntry etse : nic.getStats().getRxEthernetTypeStats()) {
                             JsonObjectBuilder etherTypeJob = Json.createObjectBuilder();
                             etherTypeJob.add("Code", DataTypeHelpers.byteArrayToHexString(etse.getEthernetType().getCode()));
                             etherTypeJob.add("Name", etse.getEthernetType().toString());
@@ -469,7 +471,7 @@ public class ApiServlet extends HttpServlet {
                         interfaceJob.add("EthernetTypeStats", etherTypeJab);
 
                         JsonArrayBuilder ipProtoJab = Json.createArrayBuilder();
-                        for (IpProtocolStatsEntry ipse : nic.getStats().getIpProtocolStats()) {
+                        for (IpProtocolStatsEntry ipse : nic.getStats().getRxIpProtocolStats()) {
                             JsonObjectBuilder ipProtoJob = Json.createObjectBuilder();
                             ipProtoJob.add("Code", DataTypeHelpers.byteArrayToHexString(new byte[]{ipse.getIpProtocol().getCode()}));
                             ipProtoJob.add("Name", ipse.getIpProtocol().toString());
@@ -478,6 +480,26 @@ public class ApiServlet extends HttpServlet {
                             ipProtoJab.add(ipProtoJob);
                         }
                         interfaceJob.add("IpProtocolStats", ipProtoJab);
+
+                        JsonArrayBuilder srcVirtPortJab = Json.createArrayBuilder();
+                        for (VirtualPortStatsEntry vpse : nic.getStats().getRxSourceVirtualPortStats()) {
+                            JsonObjectBuilder vpseJob = Json.createObjectBuilder();
+                            vpseJob.add("PortNumber", vpse.getPortNumber());
+                            vpseJob.add("PacketCount", vpse.getPacketCount());
+                            vpseJob.add("ByteCount", vpse.getByteCount());
+                            srcVirtPortJab.add(vpseJob);
+                        }
+                        interfaceJob.add("SourceVirtualPortStats", srcVirtPortJab);
+
+                        JsonArrayBuilder dstVirtPortJab = Json.createArrayBuilder();
+                        for (VirtualPortStatsEntry vpse : nic.getStats().getRxDestinationVirtualPortStats()) {
+                            JsonObjectBuilder vpseJob = Json.createObjectBuilder();
+                            vpseJob.add("PortNumber", vpse.getPortNumber());
+                            vpseJob.add("PacketCount", vpse.getPacketCount());
+                            vpseJob.add("ByteCount", vpse.getByteCount());
+                            dstVirtPortJab.add(vpseJob);
+                        }
+                        interfaceJob.add("DestinationVirtualPortStats", dstVirtPortJab);
                     }
                     interfaceJab.add(interfaceJob);
                 }

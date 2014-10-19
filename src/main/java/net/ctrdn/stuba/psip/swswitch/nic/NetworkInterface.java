@@ -1,5 +1,6 @@
 package net.ctrdn.stuba.psip.swswitch.nic;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -13,6 +14,7 @@ import net.ctrdn.stuba.psip.swswitch.acl.AccessList;
 import net.ctrdn.stuba.psip.swswitch.common.DataTypeHelpers;
 import net.ctrdn.stuba.psip.swswitch.common.EthernetType;
 import net.ctrdn.stuba.psip.swswitch.common.IpProtocol;
+import net.ctrdn.stuba.psip.swswitch.common.Unsigned;
 import org.jnetpcap.Pcap;
 import org.jnetpcap.PcapIf;
 import org.jnetpcap.packet.PcapPacket;
@@ -81,6 +83,13 @@ public class NetworkInterface {
                     if (ethernetType == EthernetType.IPV4) {
                         IpProtocol ipProtocol = IpProtocol.valueOf(packet.getByte(23));
                         Receiver.this.networkInterface.stats.addIpProtocol(ipProtocol, iframe.getPcapPacket().getCaptureHeader().caplen());
+
+                        if (ipProtocol == IpProtocol.TCP || ipProtocol == IpProtocol.UDP) {
+                            int sourcePort = Unsigned.getUnsignedShort(ByteBuffer.wrap(packet.getByteArray(34, 2)));
+                            int destinationPort = Unsigned.getUnsignedShort(ByteBuffer.wrap(packet.getByteArray(36, 2)));
+                            Receiver.this.networkInterface.stats.addSourceVirtualPortStatsEntry(sourcePort, iframe.getPcapPacket().getCaptureHeader().caplen());
+                            Receiver.this.networkInterface.stats.addDestinationVirtualPortStatsEntry(destinationPort, iframe.getPcapPacket().getCaptureHeader().caplen());
+                        }
                     }
                 }
             };
@@ -172,6 +181,8 @@ public class NetworkInterface {
         private long txPackets = 0;
         private final List<EthernetTypeStatsEntry> ethernetTypeStatsList = new ArrayList<>();
         private final List<IpProtocolStatsEntry> ipProtocolStatsList = new ArrayList<>();
+        private final List<VirtualPortStatsEntry> sourceVirtualPortStatsList = new ArrayList<>();
+        private final List<VirtualPortStatsEntry> destinationVirtualPortStatsList = new ArrayList<>();
 
         @Override
         public long getRxPackets() {
@@ -202,21 +213,33 @@ public class NetworkInterface {
         public void reset() {
             this.rxBytes = 0;
             this.rxPackets = 0;
-            this.rxBytes = 0;
+            this.txBytes = 0;
             this.txPackets = 0;
             this.ethernetTypeStatsList.clear();
             this.ipProtocolStatsList.clear();
+            this.sourceVirtualPortStatsList.clear();
+            this.destinationVirtualPortStatsList.clear();
             this.getRealtimeStats().reset();
         }
 
         @Override
-        public List<EthernetTypeStatsEntry> getEthernetTypeStats() {
+        public List<EthernetTypeStatsEntry> getRxEthernetTypeStats() {
             return this.ethernetTypeStatsList;
         }
 
         @Override
-        public List<IpProtocolStatsEntry> getIpProtocolStats() {
+        public List<IpProtocolStatsEntry> getRxIpProtocolStats() {
             return this.ipProtocolStatsList;
+        }
+
+        @Override
+        public List<VirtualPortStatsEntry> getRxSourceVirtualPortStats() {
+            return this.sourceVirtualPortStatsList;
+        }
+
+        @Override
+        public List<VirtualPortStatsEntry> getRxDestinationVirtualPortStats() {
+            return this.destinationVirtualPortStatsList;
         }
 
         public void addEthernetType(final EthernetType et, long packetLength) {
@@ -324,6 +347,116 @@ public class NetworkInterface {
                     @Override
                     public int compare(IpProtocolStatsEntry o1, IpProtocolStatsEntry o2) {
                         return o1.getIpProtocol().toString().compareTo(o2.getIpProtocol().toString());
+                    }
+                });
+            }
+        }
+
+        public void addSourceVirtualPortStatsEntry(final int portNumber, long packetLength) {
+            boolean added = false;
+            for (VirtualPortStatsEntry vpse : this.sourceVirtualPortStatsList) {
+                if (vpse.getPortNumber() == portNumber) {
+                    vpse.incrementPacketCount();
+                    vpse.incrementByteCount(packetLength);
+                    added = true;
+                    break;
+                }
+            }
+            if (!added) {
+                VirtualPortStatsEntry vpse = new VirtualPortStatsEntry() {
+
+                    private long packetCount = 0;
+                    private long byteCount = 0;
+
+                    @Override
+                    public long getPacketCount() {
+                        return this.packetCount;
+                    }
+
+                    @Override
+                    public long getByteCount() {
+                        return this.byteCount;
+                    }
+
+                    @Override
+                    public void incrementPacketCount() {
+                        this.packetCount++;
+                    }
+
+                    @Override
+                    public void incrementByteCount(long length) {
+                        this.byteCount += length;
+                    }
+
+                    @Override
+                    public int getPortNumber() {
+                        return portNumber;
+                    }
+                };
+                vpse.incrementPacketCount();
+                vpse.incrementByteCount(packetLength);
+                this.sourceVirtualPortStatsList.add(vpse);
+
+                Collections.sort(this.sourceVirtualPortStatsList, new Comparator<VirtualPortStatsEntry>() {
+
+                    @Override
+                    public int compare(VirtualPortStatsEntry o1, VirtualPortStatsEntry o2) {
+                        return o1.getPortNumber() < o2.getPortNumber() ? -1 : o1.getPortNumber() == o2.getPortNumber() ? 0 : 1;
+                    }
+                });
+            }
+        }
+
+        public void addDestinationVirtualPortStatsEntry(final int portNumber, long packetLength) {
+            boolean added = false;
+            for (VirtualPortStatsEntry vpse : this.destinationVirtualPortStatsList) {
+                if (vpse.getPortNumber() == portNumber) {
+                    vpse.incrementPacketCount();
+                    vpse.incrementByteCount(packetLength);
+                    added = true;
+                    break;
+                }
+            }
+            if (!added) {
+                VirtualPortStatsEntry vpse = new VirtualPortStatsEntry() {
+
+                    private long packetCount = 0;
+                    private long byteCount = 0;
+
+                    @Override
+                    public long getPacketCount() {
+                        return this.packetCount;
+                    }
+
+                    @Override
+                    public long getByteCount() {
+                        return this.byteCount;
+                    }
+
+                    @Override
+                    public void incrementPacketCount() {
+                        this.packetCount++;
+                    }
+
+                    @Override
+                    public void incrementByteCount(long length) {
+                        this.byteCount += length;
+                    }
+
+                    @Override
+                    public int getPortNumber() {
+                        return portNumber;
+                    }
+                };
+                vpse.incrementPacketCount();
+                vpse.incrementByteCount(packetLength);
+                this.destinationVirtualPortStatsList.add(vpse);
+
+                Collections.sort(this.destinationVirtualPortStatsList, new Comparator<VirtualPortStatsEntry>() {
+
+                    @Override
+                    public int compare(VirtualPortStatsEntry o1, VirtualPortStatsEntry o2) {
+                        return o1.getPortNumber() < o2.getPortNumber() ? -1 : o1.getPortNumber() == o2.getPortNumber() ? 0 : 1;
                     }
                 });
             }

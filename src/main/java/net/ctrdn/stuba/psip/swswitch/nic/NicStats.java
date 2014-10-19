@@ -12,9 +12,13 @@ public interface NicStats {
 
     public long getTxBytes();
 
-    public List<EthernetTypeStatsEntry> getEthernetTypeStats();
+    public List<EthernetTypeStatsEntry> getRxEthernetTypeStats();
 
-    public List<IpProtocolStatsEntry> getIpProtocolStats();
+    public List<IpProtocolStatsEntry> getRxIpProtocolStats();
+
+    public List<VirtualPortStatsEntry> getRxSourceVirtualPortStats();
+
+    public List<VirtualPortStatsEntry> getRxDestinationVirtualPortStats();
 
     public NicRealtimeStats getRealtimeStats();
 

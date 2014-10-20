@@ -70,12 +70,12 @@ public class ResourceServlet extends HttpServlet {
     }
 
     private String preprocessHeader(String requestUrl) throws IOException, ServletException {
-        String mainMenuHtml = "<ul class=\"nav nav-pills\" style=\"margin-top: 10px; margin-bottom: 20px;\">";
+        String mainMenuHtml = "<div class=\"row\"><div class=\"col-md-1 text-center\"><img src=\"/asset/img/swswitch-logo.png\" height=\"40\"  style=\"margin-top: 10px;\"/></div><div class=\"col-md-11\"><ul class=\"nav nav-pills\" style=\"margin-top: 10px; margin-bottom: 20px;\">";
         mainMenuHtml += "<li " + ((requestUrl.equals("/status.html") ? "class=\"active\"" : "")) + "><a href=\"/status.html\"><span class=\"glyphicon glyphicon-eye-open\"></span> Switch Status</a></li>";
         mainMenuHtml += "<li " + ((requestUrl.equals("/interface.html") ? "class=\"active\"" : "")) + "><a href=\"/interface.html\"><span class=\"glyphicon glyphicon-resize-horizontal\"></span> Interfaces</a></li>";
         mainMenuHtml += "<li " + ((requestUrl.equals("/acl.html") ? "class=\"active\"" : "")) + "><a href=\"/acl.html\"><span class=\"glyphicon glyphicon-lock\"></span> Access Lists</a></li>";
         mainMenuHtml += "<li " + ((requestUrl.equals("/netflow.html") ? "class=\"active\"" : "")) + "><a href=\"/netflow.html\"><span class=\"glyphicon glyphicon-share-alt\"></span> Flow Export</a></li>";
-        mainMenuHtml += "</ul>";
+        mainMenuHtml += "</ul></div></div>";
         String headerTemplate = this.getTemplate("/template/header.tpl.html");
 
         String title = "SwSwitch | ";

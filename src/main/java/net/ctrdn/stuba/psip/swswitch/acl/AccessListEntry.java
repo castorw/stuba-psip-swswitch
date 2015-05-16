@@ -121,8 +121,8 @@ public class AccessListEntry {
     }
 
     private AccessListAction evaluateImpl(PcapPacket packet) {
-        if (this.sourceMacAddress == null || Arrays.equals(this.sourceMacAddress.getAddressBytes(), packet.getByteArray(0, 6))) {
-            if (this.destinationMacAddress == null || Arrays.equals(this.sourceMacAddress.getAddressBytes(), packet.getByteArray(6, 6))) {
+        if (this.sourceMacAddress == null || Arrays.equals(this.sourceMacAddress.getAddressBytes(), packet.getByteArray(6, 6))) {
+            if (this.destinationMacAddress == null || Arrays.equals(this.destinationMacAddress.getAddressBytes(), packet.getByteArray(0, 6))) {
                 if (this.ethernetType == null || Arrays.equals(this.ethernetType.getCode(), packet.getByteArray(12, 2))) {
                     if (this.ethernetType == EthernetType.ARP) {
                         return this.action;
